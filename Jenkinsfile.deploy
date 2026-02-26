@@ -1,0 +1,27 @@
+pipeline {
+  agent any
+  options { timestamps() }
+
+  parameters {
+    choice(name: 'TARGET', choices: ['main', 'dev'], description: 'Deploy main or dev')
+  }
+
+  stages {
+    stage('Deploy') {
+      steps {
+        script {
+          def port = (params.TARGET == 'main') ? '3000' : '3001'
+          def imageName = (params.TARGET == 'main') ? 'nodemain:v1.0' : 'nodedev:v1.0'
+          def containerName = "node-${params.TARGET}"
+
+          sh """
+            set -e
+            docker rm -f ${containerName} 2>/dev/null || true
+            docker run -d --name ${containerName} -p ${port}:3000 ${imageName}
+            docker ps --filter "name=${containerName}"
+          """
+        }
+      }
+    }
+  }
+}

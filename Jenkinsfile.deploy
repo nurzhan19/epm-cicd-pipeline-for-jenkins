@@ -1,0 +1,40 @@
+pipeline {
+  agent any
+
+  options { timestamps() }
+
+  parameters {
+    choice(name: 'TARGET', choices: ['main', 'dev'], description: 'Deploy target environment')
+  }
+
+  stages {
+    stage('Deploy') {
+      steps {
+        script {
+          def appPortHost = (params.TARGET == 'main') ? '3000' : '3001'
+          def imageName   = (params.TARGET == 'main') ? 'nodemain:v1.0' : 'nodedev:v1.0'
+          def container   = "node-${params.TARGET}"
+
+          sh """
+            set -eux
+
+            docker image inspect ${imageName} >/dev/null 2>&1 || {
+              echo "ERROR: Image ${imageName} not found. Run CICD build for ${params.TARGET} first."
+              exit 1
+            }
+
+            docker rm -f ${container} 2>/dev/null || true
+
+            docker run -d --name ${container} --restart unless-stopped \\
+              -p ${appPortHost}:3000 \\
+              ${imageName}
+
+            sleep 2
+            docker ps --filter "name=${container}" --format "table {{.Names}}\\t{{.Image}}\\t{{.Ports}}\\t{{.Status}}"
+            docker logs --tail=30 ${container} || true
+          """
+        }
+      }
+    }
+  }
+}
